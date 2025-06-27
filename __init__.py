@@ -16,6 +16,7 @@ import sys
 module_names = [
     "quick_vertex_groups",
     "reload",
+    "interpolation_toggle",
 ]
 
 imported_modules = []
