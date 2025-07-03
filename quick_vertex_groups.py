@@ -1,6 +1,6 @@
 import bpy
 import re
-from bpy.props import StringProperty, FloatProperty, BoolProperty, CollectionProperty, PointerProperty
+from bpy.props import StringProperty, FloatProperty, BoolProperty, PointerProperty
 
 class QVG_Settings(bpy.types.PropertyGroup):
     match: StringProperty(name="Match", default=".*")
@@ -33,14 +33,8 @@ class QVG_PT_panel(bpy.types.Panel):
         except:
             valid = False
 
-        text = "Valid Regex"
+        text = "Valid Regex" if valid else "Invalid Regex"
 
-        if valid:
-            text = "Valid Regex"
-        else:
-            text = "Invalid Regex"
-
-        # collapsible box for vertex groups list
         box = layout.box()
         row = box.row()
         row.prop(qvg, "show_vgroups", icon="TRIA_DOWN" if qvg.show_vgroups else "TRIA_RIGHT", emboss=False, text=text)
@@ -52,7 +46,6 @@ class QVG_PT_panel(bpy.types.Panel):
                     matched = pattern.fullmatch(vg.name) is not None
                 icon = 'CHECKMARK' if matched else 'X'
                 box.label(text=vg.name, icon=icon)
-                
 
         layout.prop(qvg, "weight", slider=True)
 
@@ -76,36 +69,47 @@ class QVG_PT_panel(bpy.types.Panel):
 class QVG_OT_delete(bpy.types.Operator):
     bl_idname = "qvg.delete"
     bl_label = "Delete Vertex Groups"
+    alt: BoolProperty(default=False)
+
+    def invoke(self, context, event):
+        self.alt = event.alt
+        return self.execute(context)
 
     def execute(self, context):
-        obj = context.object
-        if obj.mode != 'OBJECT':
-            self.report({'WARNING'}, "Must be in Object mode")
-            return {'CANCELLED'}
-        
+        objs = [context.object]
+        if self.alt:
+            objs = [o for o in context.selected_objects if o.type == 'MESH']
+
         qvg = context.scene.qvg_settings
         try:
             pattern = re.compile(qvg.match)
         except:
             self.report({'ERROR'}, "Invalid regex pattern")
             return {'CANCELLED'}
-        
-        to_delete = [vg for vg in obj.vertex_groups if pattern.fullmatch(vg.name)]
-        for vg in to_delete:
-            obj.vertex_groups.remove(vg)
-        
-        return {'FINISHED'}
 
+        for obj in objs:
+            if obj.mode != 'OBJECT':
+                self.report({'WARNING'}, f"{obj.name} must be in Object mode")
+                continue
+            to_delete = [vg for vg in obj.vertex_groups if pattern.fullmatch(vg.name)]
+            for vg in to_delete:
+                obj.vertex_groups.remove(vg)
+
+        return {'FINISHED'}
 
 class QVG_OT_set_weight(bpy.types.Operator):
     bl_idname = "qvg.set_weight"
     bl_label = "Set Vertex Weight"
+    alt: BoolProperty(default=False)
+
+    def invoke(self, context, event):
+        self.alt = event.alt
+        return self.execute(context)
 
     def execute(self, context):
-        obj = context.object
-        if obj.mode != 'EDIT':
-            self.report({'WARNING'}, "Must be in Edit mode")
-            return {'CANCELLED'}
+        objs = [context.object]
+        if self.alt:
+            objs = [o for o in context.selected_objects if o.type == 'MESH']
 
         qvg = context.scene.qvg_settings
         try:
@@ -113,27 +117,36 @@ class QVG_OT_set_weight(bpy.types.Operator):
         except:
             self.report({'ERROR'}, "Invalid regex pattern")
             return {'CANCELLED'}
-        weight = qvg.weight
 
-        bpy.ops.object.mode_set(mode='OBJECT')
-        for v in obj.data.vertices:
-            if not v.select:
+        for obj in objs:
+            if obj.mode != 'EDIT':
+                self.report({'WARNING'}, f"{obj.name} must be in Edit mode")
                 continue
-            for vg in obj.vertex_groups:
-                if pattern.fullmatch(vg.name):
-                    vg.add([v.index], weight, 'REPLACE')
-        bpy.ops.object.mode_set(mode='EDIT')
+
+            bpy.ops.object.mode_set(mode='OBJECT')
+            for v in obj.data.vertices:
+                if not v.select:
+                    continue
+                for vg in obj.vertex_groups:
+                    if pattern.fullmatch(vg.name):
+                        vg.add([v.index], qvg.weight, 'REPLACE')
+            bpy.ops.object.mode_set(mode='EDIT')
+
         return {'FINISHED'}
 
 class QVG_OT_remove_weight(bpy.types.Operator):
     bl_idname = "qvg.remove_weight"
     bl_label = "Remove Vertex Weight"
+    alt: BoolProperty(default=False)
+
+    def invoke(self, context, event):
+        self.alt = event.alt
+        return self.execute(context)
 
     def execute(self, context):
-        obj = context.object
-        if obj.mode != 'EDIT':
-            self.report({'WARNING'}, "Must be in Edit mode")
-            return {'CANCELLED'}
+        objs = [context.object]
+        if self.alt:
+            objs = [o for o in context.selected_objects if o.type == 'MESH']
 
         qvg = context.scene.qvg_settings
         try:
@@ -142,14 +155,20 @@ class QVG_OT_remove_weight(bpy.types.Operator):
             self.report({'ERROR'}, "Invalid regex pattern")
             return {'CANCELLED'}
 
-        bpy.ops.object.mode_set(mode='OBJECT')
-        for v in obj.data.vertices:
-            if not v.select:
+        for obj in objs:
+            if obj.mode != 'EDIT':
+                self.report({'WARNING'}, f"{obj.name} must be in Edit mode")
                 continue
-            for vg in obj.vertex_groups:
-                if pattern.fullmatch(vg.name):
-                    vg.remove([v.index])
-        bpy.ops.object.mode_set(mode='EDIT')
+
+            bpy.ops.object.mode_set(mode='OBJECT')
+            for v in obj.data.vertices:
+                if not v.select:
+                    continue
+                for vg in obj.vertex_groups:
+                    if pattern.fullmatch(vg.name):
+                        vg.remove([v.index])
+            bpy.ops.object.mode_set(mode='EDIT')
+
         return {'FINISHED'}
 
 classes = (
@@ -163,7 +182,7 @@ classes = (
 def register():
     for cls in classes:
         bpy.utils.register_class(cls)
-    bpy.types.Scene.qvg_settings = bpy.props.PointerProperty(type=QVG_Settings)
+    bpy.types.Scene.qvg_settings = PointerProperty(type=QVG_Settings)
 
 def unregister():
     for cls in reversed(classes):

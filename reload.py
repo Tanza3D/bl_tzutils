@@ -35,7 +35,6 @@ class TzUtils_PT_reload_panel(bpy.types.Panel):
         layout = self.layout
         layout.operator("tzutils.reload_addon", icon='FILE_REFRESH')
 
-# standard register/unregister
 classes = (
     TzUtils_OT_reload_addon,
     TzUtils_PT_reload_panel,
@@ -50,5 +49,4 @@ def unregister():
         try:
             bpy.utils.unregister_class(cls)
         except RuntimeError:
-            # ignore if class not registered
             pass

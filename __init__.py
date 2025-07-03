@@ -17,6 +17,7 @@ module_names = [
     "quick_vertex_groups",
     "reload",
     "interpolation_toggle",
+    "custom_fbx_exporter",
 ]
 
 imported_modules = []

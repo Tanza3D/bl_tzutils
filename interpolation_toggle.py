@@ -48,10 +48,13 @@ def register():
         header.append(draw_interpolation_dropdown)
 
 def unregister():
-    bpy.utils.unregister_class(TZ_OT_set_interpolation)
-    for header in (
-        bpy.types.DOPESHEET_HT_header,
-        bpy.types.GRAPH_HT_header,
-        bpy.types.NLA_HT_header,
-    ):
-        header.remove(draw_interpolation_dropdown)
+    try: 
+        bpy.utils.unregister_class(TZ_OT_set_interpolation)
+        for header in (
+            bpy.types.DOPESHEET_HT_header,
+            bpy.types.GRAPH_HT_header,
+            bpy.types.NLA_HT_header,
+        ):
+            header.remove(draw_interpolation_dropdown)
+    except:
+        print("eh")
