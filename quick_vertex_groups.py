@@ -52,6 +52,7 @@ class QVG_PT_panel(bpy.types.Panel):
         row = layout.row()
         row.operator("qvg.set_weight", text="Set")
         row.operator("qvg.remove_weight", text="Remove")
+        row.operator("qvg.remove_others", text="Remove Others", icon='ERROR')
 
         layout.separator()
         layout.separator()
@@ -65,6 +66,38 @@ class QVG_PT_panel(bpy.types.Panel):
             row = layout.row()
             row.alert = True
             row.operator("qvg.delete", text="Delete", icon='ERROR')
+
+class QVG_OT_remove_others(bpy.types.Operator):
+    bl_idname = "qvg.remove_others"
+    bl_label = "Remove Non-Matching Groups"
+    alt: BoolProperty(default=False)
+
+    def invoke(self, context, event):
+        self.alt = event.alt
+        return self.execute(context)
+
+    def execute(self, context):
+        objs = [context.object]
+        if self.alt:
+            objs = [o for o in context.selected_objects if o.type == 'MESH']
+
+        qvg = context.scene.qvg_settings
+        try:
+            pattern = re.compile(qvg.match)
+        except:
+            self.report({'ERROR'}, "Invalid regex pattern")
+            return {'CANCELLED'}
+
+        for obj in objs:
+            if obj.mode != 'OBJECT':
+                self.report({'WARNING'}, f"{obj.name} must be in Object mode")
+                continue
+            to_delete = [vg for vg in obj.vertex_groups if not pattern.fullmatch(vg.name)]
+            for vg in to_delete:
+                obj.vertex_groups.remove(vg)
+
+        return {'FINISHED'}
+
 
 class QVG_OT_delete(bpy.types.Operator):
     bl_idname = "qvg.delete"
@@ -177,6 +210,7 @@ classes = (
     QVG_OT_set_weight,
     QVG_OT_remove_weight,
     QVG_OT_delete,
+    QVG_OT_remove_others,
 )
 
 def register():

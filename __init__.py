@@ -18,7 +18,12 @@ module_names = [
     "reload",
     "interpolation_toggle",
     "custom_fbx_exporter",
+    "edge_loop_hotkey",
+    "auto_tex_thumb",
+    "asset_visibility_handler",
+    "no_seam_unwrap"
 ]
+
 
 imported_modules = []
 
@@ -37,4 +42,7 @@ def register():
 
 def unregister():
     for mod in reversed(imported_modules):
-        mod.unregister()
+        try:
+            mod.unregister()
+        except Exception as e:
+            print(f"Failed to unregister module {mod.__name__}: {e}")

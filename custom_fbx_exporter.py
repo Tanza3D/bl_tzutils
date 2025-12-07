@@ -44,16 +44,30 @@ class OT_CustomFBXExporter(bpy.types.Operator):
                     if kp_uv:
                         obj.data.uv_layers.active = kp_uv
 
-                obj.data.materials.clear()
+                if not obj.name.startswith("KP_"):
+                    kp_mats = [mat for mat in obj.data.materials if mat and mat.name.startswith("KP_")]
+                    obj.data.materials.clear()
+                    for mat in kp_mats:
+                        obj.data.materials.append(mat)
 
-            bpy.ops.export_scene.fbx(filepath=fbx_path, use_selection=False)
+
+            bpy.ops.export_scene.fbx(filepath=fbx_path, use_selection=False, apply_scale_options='FBX_SCALE_ALL')
 
         except Exception as e:
             self.report({'ERROR'}, f"export failed: {str(e)}")
             bpy.ops.ed.undo()
             return {'CANCELLED'}
 
+
         bpy.ops.ed.undo()
+
+        # fixes materials disappearing after export sometimes - sometimes doesn't owrk
+        for obj in bpy.context.scene.objects:
+            if obj.type != 'MESH' or not obj.data.materials:
+                continue
+        
+            obj.data.materials.append(None)
+            obj.data.materials.pop()
 
         self.report({'INFO'}, f"exported to {fbx_path}")
         return {'FINISHED'}
