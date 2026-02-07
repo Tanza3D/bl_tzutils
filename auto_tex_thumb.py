@@ -1,3 +1,11 @@
+# NOTE:
+# this system is designed to keep textures and assets in a single place per-file for my
+# character folder - as such, it only ever functions/does anything when your blend file is
+# in a folder named "chars_g" - it's main functionality is to move all textures that are
+# referenced by or packed into the blend file into a "textures" folder next to the blend file
+# and to store a screenshot of the viewport next to the file (upon saving)
+# this probably isn't useful to you and you will never use it
+
 import bpy
 import os
 import shutil
