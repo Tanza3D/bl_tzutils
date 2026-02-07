@@ -1,12 +1,3 @@
-# NOTE:
-# this system is designed to keep textures and assets in a single place per-file for my
-# character folder - as such, it only ever functions/does anything when your blend file is
-# in a folder named "chars_g" - it's main functionality is to move all textures that are
-# referenced by or packed into the blend file into a "textures" folder next to the blend file
-# and to store a screenshot of the viewport next to the file (upon saving)
-
-# this probably isn't useful to you and you will never use it
-
 import bpy
 import os
 import shutil
@@ -26,6 +17,12 @@ def is_in_chars_g_folder(blend_filepath):
 
         folder_path = parent
 
+
+def is_in_textures_keep(filepath):
+    """Check if a file is inside a 'textures_keep' folder"""
+    normalized = os.path.normpath(filepath)
+    parts = normalized.split(os.sep)
+    return "textures_keep" in parts
 
 
 def tz_copy_textures():
@@ -55,6 +52,10 @@ def tz_copy_textures():
             continue
 
         src = bpy.path.abspath(img.filepath)
+
+        # Skip if texture is in textures_keep folder
+        if is_in_textures_keep(src):
+            continue
 
         if not os.path.exists(src):
             try:
@@ -93,12 +94,15 @@ def tz_delete_unused_textures():
     if not os.path.exists(folder):
         return
 
+    folder_normalized = os.path.normpath(folder)
+
     used_paths = set()
     for img in bpy.data.images:
         path = bpy.path.abspath(img.filepath)
         if path:
             used_paths.add(os.path.normpath(path))
 
+    # only delete unused files in OUR textures folder
     for f in os.listdir(folder):
         fpath = os.path.normpath(os.path.join(folder, f))
         if fpath not in used_paths and os.path.isfile(fpath):
@@ -107,12 +111,10 @@ def tz_delete_unused_textures():
             except:
                 pass
 
+    # only remove unused image datablocks, don't delete files from other folders
     for img in list(bpy.data.images):
         if img.users == 0:
             try:
-                path = bpy.path.abspath(img.filepath)
-                if path and os.path.exists(path):
-                    os.remove(path)
                 bpy.data.images.remove(img)
             except:
                 pass

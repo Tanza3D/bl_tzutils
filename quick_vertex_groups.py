@@ -6,7 +6,7 @@ class QVG_Settings(bpy.types.PropertyGroup):
     match: StringProperty(name="Match", default=".*")
     weight: FloatProperty(name="Weight", min=0.0, max=1.0, default=1.0)
     show_vgroups: BoolProperty(name="Show Vertex Groups", default=False)
-    show_dangerous: BoolProperty(name="Show Dangerous", default=False)
+    invert: BoolProperty(name="Invert Selection", default=False)
 
 class QVG_PT_panel(bpy.types.Panel):
     bl_label = "TZU/Vertex Groups"
@@ -44,60 +44,26 @@ class QVG_PT_panel(bpy.types.Panel):
                 matched = False
                 if valid:
                     matched = pattern.fullmatch(vg.name) is not None
+                    if qvg.invert:
+                        matched = not matched
                 icon = 'CHECKMARK' if matched else 'X'
                 box.label(text=vg.name, icon=icon)
 
         layout.prop(qvg, "weight", slider=True)
-
-        row = layout.row()
-        row.operator("qvg.set_weight", text="Set")
-        row.operator("qvg.remove_weight", text="Remove")
-        row.operator("qvg.remove_others", text="Remove Others", icon='ERROR')
-
+        
         layout.separator()
-        layout.separator()
-
-        row2 = layout.row()
-        icon = "ERROR"
-        row2.prop(qvg, "show_dangerous", icon="TRIA_DOWN" if qvg.show_dangerous else "TRIA_RIGHT", emboss=False, text="Dangerous Operations")
-        row2.label(text="", icon=icon)
-
-        if qvg.show_dangerous and obj:
+        
+        layout.prop(qvg, "invert")
+        
+        # mode-dependent buttons
+        if obj.mode == 'EDIT':
+            row = layout.row()
+            row.operator("qvg.set_weight", text="Set")
+            row.operator("qvg.remove_weight", text="Remove")
+        else:  # object mode
             row = layout.row()
             row.alert = True
             row.operator("qvg.delete", text="Delete", icon='ERROR')
-
-class QVG_OT_remove_others(bpy.types.Operator):
-    bl_idname = "qvg.remove_others"
-    bl_label = "Remove Non-Matching Groups"
-    alt: BoolProperty(default=False)
-
-    def invoke(self, context, event):
-        self.alt = event.alt
-        return self.execute(context)
-
-    def execute(self, context):
-        objs = [context.object]
-        if self.alt:
-            objs = [o for o in context.selected_objects if o.type == 'MESH']
-
-        qvg = context.scene.qvg_settings
-        try:
-            pattern = re.compile(qvg.match)
-        except:
-            self.report({'ERROR'}, "Invalid regex pattern")
-            return {'CANCELLED'}
-
-        for obj in objs:
-            if obj.mode != 'OBJECT':
-                self.report({'WARNING'}, f"{obj.name} must be in Object mode")
-                continue
-            to_delete = [vg for vg in obj.vertex_groups if not pattern.fullmatch(vg.name)]
-            for vg in to_delete:
-                obj.vertex_groups.remove(vg)
-
-        return {'FINISHED'}
-
 
 class QVG_OT_delete(bpy.types.Operator):
     bl_idname = "qvg.delete"
@@ -124,7 +90,13 @@ class QVG_OT_delete(bpy.types.Operator):
             if obj.mode != 'OBJECT':
                 self.report({'WARNING'}, f"{obj.name} must be in Object mode")
                 continue
-            to_delete = [vg for vg in obj.vertex_groups if pattern.fullmatch(vg.name)]
+            to_delete = []
+            for vg in obj.vertex_groups:
+                matched = pattern.fullmatch(vg.name) is not None
+                if qvg.invert:
+                    matched = not matched
+                if matched:
+                    to_delete.append(vg)
             for vg in to_delete:
                 obj.vertex_groups.remove(vg)
 
@@ -133,74 +105,64 @@ class QVG_OT_delete(bpy.types.Operator):
 class QVG_OT_set_weight(bpy.types.Operator):
     bl_idname = "qvg.set_weight"
     bl_label = "Set Vertex Weight"
-    alt: BoolProperty(default=False)
-
-    def invoke(self, context, event):
-        self.alt = event.alt
-        return self.execute(context)
 
     def execute(self, context):
-        objs = [context.object]
-        if self.alt:
-            objs = [o for o in context.selected_objects if o.type == 'MESH']
-
+        obj = context.object
         qvg = context.scene.qvg_settings
+        
         try:
             pattern = re.compile(qvg.match)
         except:
             self.report({'ERROR'}, "Invalid regex pattern")
             return {'CANCELLED'}
 
-        for obj in objs:
-            if obj.mode != 'EDIT':
-                self.report({'WARNING'}, f"{obj.name} must be in Edit mode")
-                continue
+        if obj.mode != 'EDIT':
+            self.report({'WARNING'}, f"{obj.name} must be in Edit mode")
+            return {'CANCELLED'}
 
-            bpy.ops.object.mode_set(mode='OBJECT')
-            for v in obj.data.vertices:
-                if not v.select:
-                    continue
-                for vg in obj.vertex_groups:
-                    if pattern.fullmatch(vg.name):
-                        vg.add([v.index], qvg.weight, 'REPLACE')
-            bpy.ops.object.mode_set(mode='EDIT')
+        bpy.ops.object.mode_set(mode='OBJECT')
+        for v in obj.data.vertices:
+            if not v.select:
+                continue
+            for vg in obj.vertex_groups:
+                matched = pattern.fullmatch(vg.name) is not None
+                if qvg.invert:
+                    matched = not matched
+                if matched:
+                    vg.add([v.index], qvg.weight, 'REPLACE')
+        bpy.ops.object.mode_set(mode='EDIT')
 
         return {'FINISHED'}
 
 class QVG_OT_remove_weight(bpy.types.Operator):
     bl_idname = "qvg.remove_weight"
     bl_label = "Remove Vertex Weight"
-    alt: BoolProperty(default=False)
-
-    def invoke(self, context, event):
-        self.alt = event.alt
-        return self.execute(context)
 
     def execute(self, context):
-        objs = [context.object]
-        if self.alt:
-            objs = [o for o in context.selected_objects if o.type == 'MESH']
-
+        obj = context.object
         qvg = context.scene.qvg_settings
+        
         try:
             pattern = re.compile(qvg.match)
         except:
             self.report({'ERROR'}, "Invalid regex pattern")
             return {'CANCELLED'}
 
-        for obj in objs:
-            if obj.mode != 'EDIT':
-                self.report({'WARNING'}, f"{obj.name} must be in Edit mode")
-                continue
+        if obj.mode != 'EDIT':
+            self.report({'WARNING'}, f"{obj.name} must be in Edit mode")
+            return {'CANCELLED'}
 
-            bpy.ops.object.mode_set(mode='OBJECT')
-            for v in obj.data.vertices:
-                if not v.select:
-                    continue
-                for vg in obj.vertex_groups:
-                    if pattern.fullmatch(vg.name):
-                        vg.remove([v.index])
-            bpy.ops.object.mode_set(mode='EDIT')
+        bpy.ops.object.mode_set(mode='OBJECT')
+        for v in obj.data.vertices:
+            if not v.select:
+                continue
+            for vg in obj.vertex_groups:
+                matched = pattern.fullmatch(vg.name) is not None
+                if qvg.invert:
+                    matched = not matched
+                if matched:
+                    vg.remove([v.index])
+        bpy.ops.object.mode_set(mode='EDIT')
 
         return {'FINISHED'}
 
@@ -210,7 +172,6 @@ classes = (
     QVG_OT_set_weight,
     QVG_OT_remove_weight,
     QVG_OT_delete,
-    QVG_OT_remove_others,
 )
 
 def register():

@@ -22,6 +22,7 @@ module_names = [
     "auto_tex_thumb",
     "asset_visibility_handler",
     "no_seam_unwrap"
+    #"polygon_count_viewer"
 ]
 
 
