@@ -2,7 +2,7 @@ bl_info = {
     "name": "TzUtils",
     "author": "Tanza",
     "version": (1, 0, 0),
-    "blender": (2, 80, 0),
+    "blender": (4, 0, 0),
     "location": "Properties > Object Data",
     "description": ":3",
     "category": "Object",
@@ -21,7 +21,12 @@ module_names = [
     "edge_loop_hotkey",
     "auto_tex_thumb",
     "asset_visibility_handler",
-    "no_seam_unwrap"
+    "no_seam_unwrap",
+    "lightmap_uvs",
+    "repack_numbered_textures",
+    "extrude_offset_even",
+    "export_individual_stls",
+    "light_color_overlay"
     #"polygon_count_viewer"
 ]
 

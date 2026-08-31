@@ -64,6 +64,8 @@ class QVG_PT_panel(bpy.types.Panel):
             row = layout.row()
             row.alert = True
             row.operator("qvg.delete", text="Delete", icon='ERROR')
+            layout.separator()
+            layout.operator("qvg.mirror_weights", text="Mirror Weights R → L", icon='MOD_MIRROR')
 
 class QVG_OT_delete(bpy.types.Operator):
     bl_idname = "qvg.delete"
@@ -134,6 +136,84 @@ class QVG_OT_set_weight(bpy.types.Operator):
 
         return {'FINISHED'}
 
+class QVG_OT_mirror_weights(bpy.types.Operator):
+    bl_idname = "qvg.mirror_weights"
+    bl_label = "Mirror Weights R -> L"
+    bl_description = "Copy all .R vertex group weights to their .L counterparts, using X axis mirror. Works with or without trailing number suffix."
+
+    def execute(self, context):
+        obj = context.object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "No mesh object selected")
+            return {'CANCELLED'}
+
+        mesh = obj.data
+        vgroups = obj.vertex_groups
+
+        qvg = context.scene.qvg_settings
+        try:
+            pattern = re.compile(qvg.match)
+        except:
+            self.report({'ERROR'}, "Invalid regex pattern")
+            return {'CANCELLED'}
+
+        def is_matched(name):
+            result = pattern.fullmatch(name) is not None
+            return not result if qvg.invert else result
+
+        # build a map of R group name -> L group name, filtered by match
+        pairs = {}
+        for vg in vgroups:
+            if not is_matched(vg.name):
+                continue
+            # matches e.g. DEF-mouth.bottom.R.010 or DEF-mouth.bottom.R
+            m = re.match(r'^(.*?)\.R(\.\d+)?$', vg.name)
+            if m:
+                prefix = m.group(1)
+                suffix = m.group(2) or ''
+                l_name = f"{prefix}.L{suffix}"
+                if l_name in vgroups:
+                    pairs[vg.name] = l_name
+
+        if not pairs:
+            self.report({'WARNING'}, "No matching .R / .L group pairs found")
+            return {'CANCELLED'}
+
+        # build per-vertex weight lookup for all R groups
+        # structure: {r_group_name: {vert_index: weight}}
+        r_weights = {r: {} for r in pairs}
+        for v in mesh.vertices:
+            for ge in v.groups:
+                vg = vgroups[ge.group]
+                if vg.name in r_weights:
+                    r_weights[vg.name][v.index] = ge.weight
+
+        # mirror: find each vertex's X-mirrored counterpart and copy weight
+        # build a spatial lookup: position -> vertex index
+        from mathutils import Vector
+
+        pos_map = {}
+        for v in mesh.vertices:
+            key = (round(v.co.x, 4), round(v.co.y, 4), round(v.co.z, 4))
+            pos_map[key] = v.index
+
+        mirrored = 0
+        for r_name, l_name in pairs.items():
+            l_vg = vgroups[l_name]
+            # clear existing L weights first
+            l_vg.remove([v.index for v in mesh.vertices])
+            for vi, w in r_weights[r_name].items():
+                co = mesh.vertices[vi].co
+                # look up the mirrored position (flip X)
+                mirror_key = (round(-co.x, 4), round(co.y, 4), round(co.z, 4))
+                if mirror_key in pos_map:
+                    l_vg.add([pos_map[mirror_key]], w, 'REPLACE')
+                    mirrored += 1
+
+        self.report({'INFO'}, f"Mirrored {len(pairs)} group pair(s), {mirrored} weight(s) copied")
+        return {'FINISHED'}
+
+
 class QVG_OT_remove_weight(bpy.types.Operator):
     bl_idname = "qvg.remove_weight"
     bl_label = "Remove Vertex Weight"
@@ -172,6 +252,7 @@ classes = (
     QVG_OT_set_weight,
     QVG_OT_remove_weight,
     QVG_OT_delete,
+    QVG_OT_mirror_weights,
 )
 
 def register():
