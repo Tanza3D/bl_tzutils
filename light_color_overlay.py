@@ -48,10 +48,6 @@ def _area_shape_local_verts(light):
                 (2 * math.pi * i / 32 for i in range(32))]
 
 def _draw():
-    scene = bpy.context.scene
-    if not scene.tz_light_color_overlay_enabled:
-        return
-
     region_data = bpy.context.region_data
     if region_data is None:
         return
@@ -105,40 +101,65 @@ def _draw():
     gpu.state.blend_set('NONE')
     gpu.state.depth_test_set('NONE')
 
-class TZ_OT_toggle_light_color_overlay(bpy.types.Operator):
-    bl_idname = "tz.toggle_light_color_overlay"
-    bl_label = "Toggle Light Color Overlay"
-    bl_description = "Show a colored marker on each light matching its actual color"
+# --- lights list panel, since blender's outliner icons can't be tinted ---
+
+class TZ_OT_select_light(bpy.types.Operator):
+    bl_idname = "tz.select_light"
+    bl_label = "Select Light"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    obj_name: bpy.props.StringProperty()
 
     def execute(self, context):
-        context.scene.tz_light_color_overlay_enabled = not context.scene.tz_light_color_overlay_enabled
-        for area in context.screen.areas:
-            if area.type == 'VIEW_3D':
-                area.tag_redraw()
+        obj = bpy.data.objects.get(self.obj_name)
+        if obj is None:
+            return {'CANCELLED'}
+        for o in context.view_layer.objects:
+            o.select_set(False)
+        obj.select_set(True)
+        context.view_layer.objects.active = obj
         return {'FINISHED'}
 
-def draw_overlay_toggle(self, context):
-    self.layout.prop(context.scene, "tz_light_color_overlay_enabled", text="Light Colors", toggle=True, icon='LIGHT')
+class TZ_PT_lights_list(bpy.types.Panel):
+    bl_label = "Lights"
+    bl_idname = "TzUtils_PT_lights_list"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'TzUtils'
+
+    def draw(self, context):
+        layout = self.layout
+        lights = [o for o in context.view_layer.objects if o.type == 'LIGHT']
+
+        if not lights:
+            layout.label(text="No lights in scene", icon='INFO')
+            return
+
+        for obj in sorted(lights, key=lambda o: o.name):
+            row = layout.row(align=True)
+            row.prop(obj.data, "color", text="")
+            op = row.operator("tz.select_light", text=obj.name, icon='LIGHT_%s' % obj.data.type, emboss=(obj == context.active_object))
+            op.obj_name = obj.name
+
+classes = (
+    TZ_OT_select_light,
+    TZ_PT_lights_list,
+)
 
 def register():
     global _handler
-    bpy.types.Scene.tz_light_color_overlay_enabled = bpy.props.BoolProperty(
-        name="Light Color Overlay",
-        default=False,
-        description="Show a colored marker on each light matching its actual color"
-    )
-    bpy.utils.register_class(TZ_OT_toggle_light_color_overlay)
-    bpy.types.VIEW3D_HT_header.append(draw_overlay_toggle)
+    for cls in classes:
+        bpy.utils.register_class(cls)
     _handler = bpy.types.SpaceView3D.draw_handler_add(_draw, (), 'WINDOW', 'POST_VIEW')
+
 
 def unregister():
     global _handler
     if _handler is not None:
         bpy.types.SpaceView3D.draw_handler_remove(_handler, 'WINDOW')
         _handler = None
-    try:
-        bpy.types.VIEW3D_HT_header.remove(draw_overlay_toggle)
-    except Exception:
-        pass
-    bpy.utils.unregister_class(TZ_OT_toggle_light_color_overlay)
-    del bpy.types.Scene.tz_light_color_overlay_enabled
+    for cls in reversed(classes):
+        try:
+            bpy.utils.unregister_class(cls)
+        except RuntimeError:
+            pass
