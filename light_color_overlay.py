@@ -48,8 +48,13 @@ def _area_shape_local_verts(light):
                 (2 * math.pi * i / 32 for i in range(32))]
 
 def _draw():
+    space = bpy.context.space_data
+    if space is None or not space.overlay.show_overlays:
+        return
+
+    region = bpy.context.region
     region_data = bpy.context.region_data
-    if region_data is None:
+    if region_data is None or region is None:
         return
 
     view_inv = region_data.view_matrix.inverted()
@@ -57,6 +62,14 @@ def _draw():
     right = view_rot @ Vector((1, 0, 0))
     up = view_rot @ Vector((0, 1, 0))
     cam_pos = view_inv.translation
+
+    from bpy_extras.view3d_utils import region_2d_to_location_3d
+
+    def world_units_per_pixel(world_pos):
+        # distance between two points 1px apart on screen, at world_pos's depth
+        p1 = region_2d_to_location_3d(region, region_data, (region.width / 2, region.height / 2), world_pos)
+        p2 = region_2d_to_location_3d(region, region_data, (region.width / 2 + 1, region.height / 2), world_pos)
+        return (p2 - p1).length
 
     shader = gpu.shader.from_builtin('UNIFORM_COLOR')
     gpu.state.blend_set('ALPHA')
@@ -94,7 +107,8 @@ def _draw():
             shader.uniform_float("color", (r, g, b, 0.9))
             batch.draw(shader)
         else:
-            radius = 0.03
+            px_radius = 5
+            radius = px_radius * world_units_per_pixel(origin)
             _draw_dot(shader, origin + push, right, up, radius, (r, g, b, 0.9))
 
     gpu.state.line_width_set(1)
