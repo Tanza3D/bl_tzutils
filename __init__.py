@@ -24,10 +24,11 @@ module_names = [
     "no_seam_unwrap",
     "lightmap_uvs",
     "repack_numbered_textures",
-    "extrude_offset_even",
     "export_individual_stls",
-    "light_color_overlay"
-    #"polygon_count_viewer"
+    "light_color_overlay",
+    "anim_retarget",
+    "uv_grid_preview",
+    "modifier_clipboard"
 ]
 
 
