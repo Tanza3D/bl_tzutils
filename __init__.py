@@ -28,7 +28,11 @@ module_names = [
     "light_color_overlay",
     "anim_retarget",
     "uv_grid_preview",
-    "modifier_clipboard"
+    "modifier_clipboard",
+    "lattice_weight_proxy",
+    "clipboard_shot",
+    "glass_uvs",
+    "rigify_regen"
 ]
 
 
